@@ -3,5 +3,6 @@ package config;
 public enum LogDestination {
     CONSOLE,
     FILE,
-    DATABASE
+    DATABASE,
+    REMOTE
 }

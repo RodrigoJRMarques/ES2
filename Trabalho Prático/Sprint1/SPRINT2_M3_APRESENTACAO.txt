@@ -1,0 +1,210 @@
+SPRINT 2 - M3: Modulo de Abstracao de Destino de Logs
+
+Objetivo
+- Permitir guardar/enviar logs para varios destinos sem alterar o resto do sistema.
+- Suportar consola, ficheiro, base de dados e servico remoto.
+- Facilitar adicao de novos destinos no futuro.
+
+Padrao principal usado no M3
+- Bridge (ponte).
+
+Porque usamos Bridge
+- O problema do M3 e separar duas coisas que podem evoluir de forma independente:
+  1) O que e um log no sistema (abstracao).
+  2) Para onde esse log e enviado (implementacao).
+- Com Bridge, evitamos acoplamento forte entre tipo de log e destino.
+- Assim, podemos mudar/adicionar destinos sem mexer no resto da aplicacao.
+
+Ficheiros criados no M3 e o que cada um faz
+
+- destinations/LogDestinationImplementor.java [INTERFACE - Implementor do Bridge]
+  E a interface que define o contrato comum para TODOS os destinos de log.
+  So tem um metodo: write(String formattedLog).
+  Qualquer novo tipo de armazenamento (Email, SMS, Cloud, etc.) precisara apenas de implementar esta interface.
+  Assim, nao ha necessidade de mexer no resto do sistema quando adicionas um novo destino.
+  Papel no Bridge: E o "Implementor" do padrao - define como escrever o log em qualquer tecnologia.
+
+- destinations/ConsoleLogDestination.java [IMPLEMENTACAO CONCRETA]
+  Implementa LogDestinationImplementor para enviar logs para a consola (System.out).
+  Quando o write() e chamado, simplesmente faz System.out.println() com o log formatado.
+  E util para debug e testes. E a implementacao mais simples: apenas mostra na tela.
+  Codigo: public void write(String formattedLog) { System.out.println(formattedLog); }
+
+- destinations/FileLogDestination.java [IMPLEMENTACAO CONCRETA]
+  Implementa LogDestinationImplementor para gravar logs em ficheiro.
+  Obtem o caminho do ficheiro a partir de LogConfig (que e Singleton).
+  Se a pasta nao existir, cria-a automaticamente usando Files.createDirectories().
+  Usa Files.writeString() com a opcao StandardOpenOption.APPEND para adicionar linhas ao ficheiro.
+  Cada chamada a write() adiciona uma nova linha ao ficheiro, preservando as linhas anteriores.
+  E util para persistencia de logs e analise posterior.
+
+- destinations/DatabaseLogDestination.java [IMPLEMENTACAO CONCRETA]
+  Implementa LogDestinationImplementor para armazenar logs em base de dados.
+  Na fase atual, e apenas uma simulacao: imprime [DB] na consola.
+  Num projeto real, aqui terias JDBC ou uma biblioteca ORM (Hibernate, JPA) para executar queries INSERT.
+  Demonstra que a arquitetura permite futuros tipos de armazenamento sem mexer na abstracao.
+  Codigo: public void write(String formattedLog) { System.out.println("[DB] " + formattedLog); }
+
+- destinations/RemoteLogDestination.java [IMPLEMENTACAO CONCRETA]
+  Implementa LogDestinationImplementor para enviar logs para um servico remoto.
+  Poderia ser um servidor HTTP, um servico cloud (AWS, Azure), ou um sistema ELK.
+  Na fase atual, e apenas uma simulacao: imprime [REMOTE] na consola.
+  Num projeto real, aqui terias chamadas HTTP (RestTemplate, HttpClient) para enviar o log para um servidor.
+  Codigo: public void write(String formattedLog) { System.out.println("[REMOTE] " + formattedLog); }
+
+- factory/LogDestinationFactory.java [FACTORY - Cria destinos]
+  E o criador responsavel por criar a implementacao correta de LogDestinationImplementor.
+  Tem um metodo estatico: createDestination(LogDestination destination).
+  Recebe um enum LogDestination (CONSOLE, FILE, DATABASE, REMOTE) e devolve a implementacao correta.
+  Usa um switch para mapear cada valor do enum a uma classe concreta:
+    - CONSOLE -> new ConsoleLogDestination()
+    - FILE -> new FileLogDestination()
+    - DATABASE -> new DatabaseLogDestination()
+    - REMOTE -> new RemoteLogDestination()
+  Vantagem: Se quisermos trocar ou adicionar um novo destino, alteramos apenas aqui e em nenhuma outra parte do codigo.
+  Papel: Centraliza a criacao de objetos para evitar duplicacao e facilitar mudancas futuras.
+
+- service/LogBridge.java [ABSTRACTION - Ponte do Bridge]
+  E a classe abstrata que separa a logica de envio do detalhe de implementacao.
+  Tem um atributo: LogDestinationImplementor destination.
+  Tem dois metodos principais:
+    - setDestination(): permite trocar o destino em runtime.
+    - send(LogEntry logEntry): envia o log chamando destination.write(logEntry.format()).
+  O cliente (Main) nunca precisa saber se o destino e CONSOLE, FILE, DATABASE ou REMOTE.
+  Apenas chama send() e a LogBridge trata de chamar o destino correto.
+  Papel no Bridge: E a "Abstraction" - define a interface de alto nivel, independente da implementacao.
+
+- service/ApplicationLogBridge.java [REFINED ABSTRACTION]
+  Estende LogBridge para especializar ainda mais a abstracao.
+  Neste primeiro momento, apenas chama super.send(), mas deixa espaco para possiveis extensoes.
+  Exemplo: num futuro modulo M7 (Decorator), aqui poderias adicionar alertas automaticos ou enriquecimento de dados.
+  Papel: Permite que a aplicacao tenha sua propria versao da ponte sem tocar na classe base.
+
+- service/LogDispatcher.java [DISPATCHER - Orquestrador]
+  E o maestro de todo o M3. Coordena a interacao entre LogConfig, LogDestinationFactory e LogBridge.
+  Metodo constructor: cria uma LogBridge com o destino inicial.
+  Metodo dispatch(LogEntry logEntry):
+    1) Le o destino ativo em LogConfig (Singleton).
+    2) Pede a LogDestinationFactory a implementacao correta desse destino.
+    3) Altera o destino da bridge (setDestination).
+    4) Envia o log (logBridge.send(logEntry)).
+  Vantagem: O cliente (Main) so precisa de chamar dispatcher.dispatch(log) e nao tem que se preocupar com detalhes.
+  E aqui que o M3 se "encaixa" com o M1 (configuracao) e M2 (criacao de logs).
+
+Ficheiros alterados para integrar o M3
+
+- config/LogDestination.java [ALTERADO]
+  E um enum que lista os tipos de destino disponiveis.
+  Antes: { CONSOLE, FILE, DATABASE }
+  Agora: { CONSOLE, FILE, DATABASE, REMOTE }
+  O novo valor REMOTE permite que o LogDestinationFactory saiba criar um RemoteLogDestination quando necessario.
+
+- Main.java [ALTERADO - Ponto de entrada]
+  Era: So tinha M1 (config) e M2 (criar logs, apenas mostrar na consola).
+  Agora: Tem M1 + M2 + M3 integrados.
+  Mudanca: Em vez de System.out.println(log.format()), agora chama dispatcher.dispatch(log).
+  Isto permite que o log seja enviado para qualquer destino configurado, nao apenas a consola.
+
+O que esta a ser feito na Main (explicacao detalhada para falares)
+
+FASE 1 - MODULO 1 (Configuracao Centralizada):
+1) LogConfig config = LogConfig.getInstance();
+   - Obtem a unica instancia global de configuracao (Singleton).
+   - Toda a aplicacao acede a mesma instancia, evitando inconsistencias.
+
+2) config.setLogLevel(LogLevel.DEBUG);
+   - Define o nivel de log minimo a DEBUG.
+   - Isto significa que logs INFO, WARNING, ERROR e DEBUG serao registados.
+
+3) config.setDestination(LogDestination.FILE);
+   - Define o destino inicial como FICHEIRO.
+   - Os logs serao grabados em ficheiro, nao em consola.
+
+4) config.setFilePath("logs/app.log");
+   - Define o caminho do ficheiro onde os logs serao gravados.
+   - O FileLogDestination usara este caminho.
+
+FASE 2 - MODULO 2 (Criacao de tipos de Log):
+5) LogEntry log1 = LogFactory.createLog("INFO", "Aplicação iniciada");
+   - Usa a Factory para criar um log do tipo INFO.
+   - O LogFactory decide automaticamente devolver um InfoLog.
+
+6) LogEntry log2 = LogFactory.createLog("ERROR", "Erro na base de dados");
+   - Usa a Factory para criar um log do tipo ERROR.
+   - O LogFactory decide automaticamente devolver um ErrorLog.
+
+FASE 3 - MODULO 3 (Abstracao de Destino - Bridge):
+7) LogDispatcher dispatcher = new LogDispatcher();
+   - Cria o maestro do M3, que coordena tudo.
+   - Internamente, ja cria uma LogBridge e obtem o destino configurado (FILE).
+
+8) dispatcher.dispatch(log1);
+   - Envia o primeiro log (INFO) para o destino atual.
+   - LogDispatcher: 1) le LogConfig, 2) pede a Factory o FileLogDestination,
+     3) altera a bridge para usar FileLogDestination, 4) chama bridge.send(log1).
+   - Resultado: o log e gravado no ficheiro "logs/app.log".
+
+9) dispatcher.dispatch(log2);
+   - Envia o segundo log (ERROR) para o mesmo destino (FILE).
+   - Resultado: outra linha e adicionada ao ficheiro.
+
+FASE 4 - DEMONSTRACAO DE ALTERACAO EM RUNTIME (M3 em acao):
+10) config.setDestination(LogDestination.CONSOLE);
+    - Altera a configuracao global para enviar para CONSOLA.
+    - Sem precisar de recompilacao ou restart do codigo.
+
+11) LogEntry log3 = LogFactory.createLog("DEBUG", "Destino alterado em runtime");
+    - Cria um novo log DEBUG.
+
+12) dispatcher.dispatch(log3);
+    - Envia o terceiro log para CONSOLA (nao para ficheiro).
+    - LogDispatcher: 1) le a NOVA configuracao (CONSOLE), 2) pede a Factory o ConsoleLogDestination,
+      3) altera a bridge para usar ConsoleLogDestination, 4) chama bridge.send(log3).
+    - Resultado: o log aparece na consola, nao no ficheiro.
+
+CONCLUSAO:
+- Os primeiros dois logs foram gravados em ficheiro.
+- O terceiro log foi escrito na consola.
+- Tudo isto aconteceu sem mexer no codigo cliente (Main).
+- Se quisermos DATABASE ou REMOTE, apenas alteramos config.setDestination() e tudo funciona.
+- Isto e o poder do Bridge: separacao perfeita entre abstracao (LogBridge) e implementacao (destinos concretos).
+
+Fluxo de execucao (passo a passo)
+1) O sistema cria o LogEntry no M2 com LogFactory.
+2) O LogDispatcher consulta o destino ativo no LogConfig (M1).
+3) A LogDestinationFactory devolve o implementor correto.
+4) O LogBridge envia o log formatado para esse implementor.
+
+Vantagens da solucao
+- Baixo acoplamento: cliente nao conhece detalhes de escrita/envio.
+- Aberto para extensao: novo destino = nova classe + 1 caso na fabrica.
+- Troca de destino em runtime: alterar configuracao e despachar novamente.
+- Preparado para os proximos modulos (M4, M5, M6, M7).
+
+Defesa rapida (30-45 segundos)
+"No Sprint 2 implementamos o M3 com o padrao Bridge para abstrair o destino dos logs. 
+Separamos a abstracao de envio (LogBridge) da implementacao de destino 
+(consola, ficheiro, base de dados e remoto). O LogDispatcher usa o LogConfig 
+para saber o destino ativo e a LogDestinationFactory para obter a implementacao certa. 
+Desta forma, trocar ou adicionar destinos nao obriga a alterar o resto do sistema."
+
+Guiao oral (60 segundos)
+"No Sprint 1 aplicamos Singleton para configuracao centralizada (M1) e Factory para criacao de logs (M2). 
+Neste Sprint 2 resolvemos o M3 com Bridge. 
+O Bridge separa a logica de envio de logs da tecnologia de destino. 
+Na abstracao temos o LogBridge e na implementacao temos LogDestinationImplementor com quatro destinos: 
+consola, ficheiro, base de dados e remoto. 
+O LogDispatcher liga estas duas partes usando a configuracao atual do LogConfig. 
+Resultado: sistema desacoplado, extensivel e facil de manter. 
+Se surgir um novo destino, criamos uma nova classe de destino sem mexer no cliente nem na estrutura principal." 
+
+Versao curta para decorar (20 segundos)
+"No M3 usamos Bridge para separar o envio do log do destino final. 
+Assim suportamos consola, ficheiro, base de dados e remoto, e podemos adicionar novos destinos com impacto minimo." 
+
+Guiao pratico de apresentacao (ordem sugerida)
+1) Mostrar Main.java e dizer: "a aplicacao continua unica e aqui estao M1, M2 e M3 integrados".
+2) Mostrar LogDispatcher.java e explicar que e o ponto central de despacho.
+3) Mostrar LogDestinationFactory.java e explicar a escolha de destino por configuracao.
+4) Mostrar LogDestinationImplementor.java e uma implementacao concreta (ex.: FileLogDestination.java).
+5) Fechar com a ideia principal: "trocar destino sem mexer no codigo cliente".

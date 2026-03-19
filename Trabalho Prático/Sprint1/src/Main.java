@@ -3,6 +3,7 @@ import config.LogDestination;
 import config.LogLevel;
 import factory.LogFactory;
 import logs.LogEntry;
+import service.LogDispatcher;
 
 public class Main {
 
@@ -23,7 +24,14 @@ public class Main {
         LogEntry log1 = LogFactory.createLog("INFO", "Aplicação iniciada");
         LogEntry log2 = LogFactory.createLog("ERROR", "Erro na base de dados");
 
-        System.out.println(log1.format());
-        System.out.println(log2.format());
+        // Modulo 3
+        LogDispatcher dispatcher = new LogDispatcher();
+        dispatcher.dispatch(log1);
+        dispatcher.dispatch(log2);
+
+        // Troca de destino em runtime sem alterar o resto do sistema.
+        config.setDestination(LogDestination.CONSOLE);
+        LogEntry log3 = LogFactory.createLog("DEBUG", "Destino alterado em runtime");
+        dispatcher.dispatch(log3);
     }
 }
