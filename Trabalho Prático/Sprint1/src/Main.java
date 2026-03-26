@@ -3,11 +3,19 @@ import composite.LogLeaf;
 import config.LogConfig;
 import config.LogDestination;
 import config.LogLevel;
+import extensions.AdminAlertExtension;
+import extensions.ErrorPatternAnalysisExtension;
+import extensions.MonitoringIntegrationExtension;
 import factory.LogFactory;
+import filters.KeywordExcludeFilter;
 import logs.LogEntry;
 import object_pool.FormatterPool;
 import object_pool.LogFormatter;
 import service.LogDispatcher;
+import state.LogStateManager;
+
+import java.util.Collections;
+import java.util.Set;
 
 public class Main {
 
@@ -73,6 +81,42 @@ public class Main {
         System.out.println(formatted);
 
         pool.release(formatter);
+
+        // Modulo 6 - Armazenamento de Estado
+        System.out.println("\nM6 - Armazenamento de Estado");
+        LogStateManager stateManager = new LogStateManager(config);
+
+        config.activateLevel(LogLevel.ERROR);
+        config.deactivateLevel(LogLevel.DEBUG);
+        config.setDestination(LogDestination.FILE);
+        config.addDestination(LogDestination.CONSOLE);
+        config.addFilter(new KeywordExcludeFilter(Collections.singleton("ignorar")));
+        stateManager.saveState();
+
+        config.setDestination(LogDestination.REMOTE);
+        config.clearFilters();
+        config.deactivateLevel(LogLevel.ERROR);
+
+        System.out.println("Estado alterado: destino=" + config.getDestination() + ", niveis ativos=" + config.getActiveLevels());
+
+        boolean restored = stateManager.restoreLastState();
+        System.out.println("Estado restaurado=" + restored + ", destinos ativos=" + config.getActiveDestinations() + ", filtros=" + config.getFilters().size());
+
+        // Modulo 7 - Extensoes Dinamicas
+        System.out.println("\nM7 - Extensoes Dinamicas");
+        dispatcher.registerExtension(new AdminAlertExtension());
+        dispatcher.registerExtension(new MonitoringIntegrationExtension());
+        dispatcher.registerExtension(new ErrorPatternAnalysisExtension(2));
+
+        LogEntry log6 = LogFactory.createLog("INFO", "Evento para monitorizacao");
+        LogEntry log7 = LogFactory.createLog("ERROR", "Falha de autenticacao");
+        LogEntry log8 = LogFactory.createLog("ERROR", "Falha de autenticacao");
+        LogEntry log9 = LogFactory.createLog("INFO", "Mensagem para ignorar");
+
+        dispatcher.dispatch(log6);
+        dispatcher.dispatch(log7);
+        dispatcher.dispatch(log8);
+        dispatcher.dispatch(log9);
 
 
     }

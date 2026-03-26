@@ -14,6 +14,14 @@ public abstract class LogEntry {
 
     public abstract String getLevel();
 
+    public String getMessage() {
+        return message;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
     public String format() {
         return "[" + timestamp + "] [" + getLevel() + "] " + message;
     }

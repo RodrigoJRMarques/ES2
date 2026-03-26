@@ -3,6 +3,7 @@ package destinations;
 import config.LogConfig;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -21,9 +22,9 @@ public class FileLogDestination implements LogDestinationImplementor {
                 Files.createDirectories(parent);
             }
 
-            Files.writeString(
+            Files.write(
                 filePath,
-                formattedLog + System.lineSeparator(),
+                (formattedLog + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
             );
