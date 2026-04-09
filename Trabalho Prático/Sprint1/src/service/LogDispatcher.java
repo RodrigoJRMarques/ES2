@@ -3,8 +3,9 @@ package service;
 import config.LogConfig;
 import config.LogDestination;
 import config.LogLevel;
+import decorators.DispatchAction;
+import decorators.NoOpDispatchAction;
 import destinations.LogDestinationImplementor;
-import extensions.LogExtension;
 import factory.LogDestinationFactory;
 import logs.LogEntry;
 
@@ -14,12 +15,12 @@ import java.util.Set;
 public class LogDispatcher {
 
     private final LogBridge logBridge;
-    private final LogExtensionManager extensionManager;
+    private volatile DispatchAction dispatchAction;
 
     public LogDispatcher() {
         LogDestinationImplementor destination = LogDestinationFactory.createDestination(LogConfig.getInstance().getDestination());
         this.logBridge = new ApplicationLogBridge(destination);
-        this.extensionManager = new LogExtensionManager();
+        this.dispatchAction = new NoOpDispatchAction();
     }
 
     public void dispatch(LogEntry logEntry) {
@@ -29,12 +30,12 @@ public class LogDispatcher {
         try {
             level = LogLevel.fromName(logEntry.getLevel());
         } catch (IllegalArgumentException ex) {
-            extensionManager.notifyFiltered(logEntry);
+            dispatchAction.onFiltered(logEntry);
             return;
         }
 
         if (!config.isLevelActive(level) || !config.passesFilters(logEntry)) {
-            extensionManager.notifyFiltered(logEntry);
+            dispatchAction.onFiltered(logEntry);
             return;
         }
 
@@ -48,19 +49,15 @@ public class LogDispatcher {
             LogDestinationImplementor destination = LogDestinationFactory.createDestination(configuredDestination);
             logBridge.setDestination(destination);
             logBridge.send(logEntry);
-            extensionManager.notifyDispatched(logEntry, configuredDestination, formattedLog);
+            dispatchAction.onDispatched(logEntry, configuredDestination, formattedLog);
         }
     }
 
-    public void registerExtension(LogExtension extension) {
-        extensionManager.register(extension);
-    }
-
-    public void unregisterExtension(LogExtension extension) {
-        extensionManager.unregister(extension);
-    }
-
-    public LogExtensionManager getExtensionManager() {
-        return extensionManager;
+    public void setDispatchAction(DispatchAction dispatchAction) {
+        if (dispatchAction == null) {
+            this.dispatchAction = new NoOpDispatchAction();
+            return;
+        }
+        this.dispatchAction = dispatchAction;
     }
 }

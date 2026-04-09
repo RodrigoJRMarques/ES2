@@ -1,13 +1,12 @@
-package extensions;
+package decorators;
 
 import config.LogDestination;
 import logs.LogEntry;
 
-public class AdminAlertExtension implements LogExtension {
+public class AdminAlertDecorator extends DispatchActionDecorator {
 
-    @Override
-    public String getName() {
-        return "AdminAlertExtension";
+    public AdminAlertDecorator(DispatchAction next) {
+        super(next);
     }
 
     @Override
@@ -15,5 +14,6 @@ public class AdminAlertExtension implements LogExtension {
         if ("ERROR".equalsIgnoreCase(logEntry.getLevel())) {
             System.out.println("[ADMIN ALERT] Erro critico enviado para " + destination + ": " + logEntry.getMessage());
         }
+        super.onDispatched(logEntry, destination, formattedLog);
     }
 }

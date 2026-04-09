@@ -3,9 +3,11 @@ import composite.LogLeaf;
 import config.LogConfig;
 import config.LogDestination;
 import config.LogLevel;
-import extensions.AdminAlertExtension;
-import extensions.ErrorPatternAnalysisExtension;
-import extensions.MonitoringIntegrationExtension;
+import decorators.AdminAlertDecorator;
+import decorators.DispatchAction;
+import decorators.ErrorPatternAnalysisDecorator;
+import decorators.MonitoringIntegrationDecorator;
+import decorators.NoOpDispatchAction;
 import factory.LogFactory;
 import filters.KeywordExcludeFilter;
 import logs.LogEntry;
@@ -102,11 +104,15 @@ public class Main {
         boolean restored = stateManager.restoreLastState();
         System.out.println("Estado restaurado=" + restored + ", destinos ativos=" + config.getActiveDestinations() + ", filtros=" + config.getFilters().size());
 
-        // Modulo 7 - Extensoes Dinamicas
-        System.out.println("\nM7 - Extensoes Dinamicas");
-        dispatcher.registerExtension(new AdminAlertExtension());
-        dispatcher.registerExtension(new MonitoringIntegrationExtension());
-        dispatcher.registerExtension(new ErrorPatternAnalysisExtension(2));
+        // Modulo 7 - Decorator
+        System.out.println("\nM7 - Decorator");
+        DispatchAction m7DecoratorChain = new ErrorPatternAnalysisDecorator(
+            new MonitoringIntegrationDecorator(
+                new AdminAlertDecorator(new NoOpDispatchAction())
+            ),
+            2
+        );
+        dispatcher.setDispatchAction(m7DecoratorChain);
 
         LogEntry log6 = LogFactory.createLog("INFO", "Evento para monitorizacao");
         LogEntry log7 = LogFactory.createLog("ERROR", "Falha de autenticacao");
