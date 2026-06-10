@@ -1,0 +1,33 @@
+Matriz de Rastreabilidade - Sprint 4
+GREENHERB
+
+Resumo
+
+- Area funcional: autenticacao, gestao de utilizadores e servicos de dominio GREENHERB
+- Endpoints cobertos:
+  GET /health
+  POST /auth/register
+  POST /auth/login
+  POST /auth/refresh
+  GET /users/me
+  GET /users
+- Testes unitarios: 85
+- Testes de integracao: 17
+- Testes de sistema: 3
+- Total de testes: 105
+- Tecnicas usadas:
+  Particionamento de Equivalencia
+  Valores Limite
+  Fluxo nominal
+  Condicoes multiplas
+  MC/DC
+  Validacao de token JWT
+  Validacao de payload JSON
+  Validacao de metodos HTTP
+  Tratamento de erro
+
+Observacoes
+
+- A versao detalhada da matriz encontra-se em docs/matriz-rastreabilidade-sprint1.md.
+- O Sprint 4 cobre os endpoints efetivamente expostos pela API atual.
+- Os restantes modulos de dominio presentes no repositorio estao cobertos ao nivel unitario.
